@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
 
 from app.auth.dependencies import get_current_user
 from app.database import get_db
@@ -12,22 +13,18 @@ router = APIRouter(
     tags=["Certificate Incharge Attendance Listing"]
 )
 
-
-@router.get("/list-students")
-async def list_students_for_certificate_incharge(
+@router.get("/list-classes")
+async def list_classes_for_certificate_incharge(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # 1. Only certificate_incharge is allowed
+    # Allowed only for certificate incharge
     if current_user.role != UserRole.certificate_incharge:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    # 2. Load user with assigned classes + students
     result = await db.execute(
         select(User)
         .options(
-            selectinload(User.assigned_classes)
-            .selectinload(Class.students),
             selectinload(User.assigned_classes)
             .selectinload(Class.class_name_ref)
         )
@@ -35,7 +32,6 @@ async def list_students_for_certificate_incharge(
     )
 
     staff = result.scalar_one_or_none()
-
     if not staff:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -45,32 +41,82 @@ async def list_students_for_certificate_incharge(
             "classes": []
         }
 
-    response_data = []
-
-    # 3. Build output grouped by class (NO gender filter)
-    for c in staff.assigned_classes:
-        response_data.append({
+    classes = [
+        {
             "class_id": c.id,
             "class_name": c.class_name_ref.name,
             "department": c.department,
             "section": c.section,
-            "regular_or_self": c.regular_or_self,
-            "students_count": len(c.students),
-            "students": [
-                {
-                    "student_id": s.id,
-                    "roll_number": s.roll_number,
-                    "name": s.name,
-                    "gender": s.gender,
-                    "present": s.present
-                }
-                for s in c.students
-            ]
-        })
+            "regular_or_self": c.regular_or_self
+        }
+        for c in staff.assigned_classes
+    ]
 
     return {
         "staff_id": current_user.id,
         "staff_name": current_user.staff_name,
-        "assigned_classes_count": len(staff.assigned_classes),
-        "classes": response_data
+        "assigned_classes_count": len(classes),
+        "classes": classes
+    }
+
+
+
+@router.get("/class/{class_id}/students")
+async def get_students_by_class(
+    class_id: str,
+    present: Optional[bool] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    # Allowed only for certificate incharge
+    if current_user.role != UserRole.certificate_incharge:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Load class with students
+    result = await db.execute(
+        select(Class)
+        .options(
+            selectinload(Class.students),
+            selectinload(Class.class_name_ref)
+        )
+        .where(Class.id == class_id)
+    )
+    cls = result.scalar_one_or_none()
+    if not cls:
+        raise HTTPException(status_code=404, detail="Class not found")
+
+    # Check staff actually has access to this class
+    result_staff = await db.execute(
+        select(User)
+        .options(selectinload(User.assigned_classes))
+        .where(User.id == current_user.id)
+    )
+    staff = result_staff.scalar_one()
+
+    if cls not in staff.assigned_classes:
+        raise HTTPException(status_code=403, detail="You are not incharge of this class")
+
+    # Apply present filter
+    if present is None:
+        filtered_students = cls.students
+    else:
+        filtered_students = [s for s in cls.students if s.present == present]
+
+    return {
+        "class_id": cls.id,
+        "class_name": cls.class_name_ref.name,
+        "department": cls.department,
+        "section": cls.section,
+        "regular_or_self": cls.regular_or_self,
+        "students_count": len(filtered_students),
+        "students": [
+            {
+                "student_id": s.id,
+                "roll_number": s.roll_number,
+                "name": s.name,
+                "gender": s.gender,
+                "present": s.present
+            }
+            for s in filtered_students
+        ]
     }

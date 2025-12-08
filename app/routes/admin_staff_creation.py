@@ -69,7 +69,7 @@ async def bulk_create_staff(staff_list: List[StaffCreate], db: AsyncSession = De
         new_staff = User(
             staff_roll_number=staff_data.staff_roll_number,
             role=staff_data.role,
-            gender=staff_data.gender,
+            gender=staff_data.gender.lower(),
             assigned_classes=assigned_classes
         )
         db.add(new_staff)

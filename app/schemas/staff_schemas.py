@@ -10,3 +10,20 @@ class StaffCreate(BaseModel):
     gender: str
     assigned_class_ids: Optional[List[str]] = None
     assigned_class_names: Optional[List[str]] = None
+
+
+class StaffRead(BaseModel):
+    id: str
+    staff_name: Optional[str]
+    staff_roll_number: Optional[str]
+    role: str
+    gender: str
+    assigned_classes: List[str] = []
+
+    class Config:
+        orm_mode = True
+
+
+class StaffListResponse(BaseModel):
+    count: int
+    staffs: List[StaffRead]

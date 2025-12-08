@@ -4,7 +4,7 @@ from typing import List, Optional
 class StudentCreate(BaseModel):
     roll_number: str
     name: str
-    gender: str = Field(..., pattern="^(male|female)$")
+    gender: str
 
     # Option 1: Direct class_id
     class_id: Optional[str] = None

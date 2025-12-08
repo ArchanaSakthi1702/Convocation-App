@@ -71,7 +71,7 @@ async def create_student(payload: StudentCreate, db: AsyncSession = Depends(get_
 
 # ---------------------------- BULK CREATE ---------------------------- #
 
-@router.post("student/bulk-create")
+@router.post("/student/bulk-create")
 async def create_students_bulk(payload: StudentBulkCreate, db: AsyncSession = Depends(get_db)):
 
     created = []
@@ -107,7 +107,7 @@ async def create_students_bulk(payload: StudentBulkCreate, db: AsyncSession = De
         new_stu = Student(
             roll_number=item.roll_number,
             name=item.name,
-            gender=item.gender,
+            gender=item.gender.lower(),
             class_id=cls_obj.id
         )
         db.add(new_stu)
