@@ -8,6 +8,7 @@ from app.auth.dependencies import get_current_user
 from app.database import get_db
 from app.models import User, Student,UserRole
 from app.helpers.attendance_time_checker import check_attendance_time_limit
+from app.schemas.attendance_marking import MarkAttendanceResponse
 
 router = APIRouter(prefix="/attendance-staff", tags=["Attendance Incharge Marking Attendances"])
 
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/attendance-staff", tags=["Attendance Incharge Markin
 # -------------------------
 # PUT: Mark Attendance
 # -------------------------
-@router.put("/mark-attendace")
+@router.put("/mark-attendace", response_model=MarkAttendanceResponse)
 async def mark_attendance(
     student_id: str,
     present: bool,

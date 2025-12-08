@@ -6,6 +6,7 @@ from uuid import UUID
 
 from app.database import get_db
 from app.models import Class, Student
+from app.schemas.student_schemas import StudentListByClassResponse
 
 
 router = APIRouter(
@@ -20,7 +21,7 @@ router = APIRouter(
 # ---------------------------------------------------------
 # List all students in a class (with optional ?present=bool)
 # ---------------------------------------------------------
-@router.get("/list-by-class/{class_id}")
+@router.get("/list-by-class/{class_id}",response_model=StudentListByClassResponse)
 async def get_students_by_class(
     class_id: str,
     present: bool | None = Query(None),
@@ -53,12 +54,12 @@ async def get_students_by_class(
 
     # Response
     return {
-        "class_id": class_id,
+        "class_id": str(class_id),
         "total_students": len(students),
         "filtered_by_present": present,
         "students": [
             {
-                "student_id": s.id,
+                "student_id": str(s.id),
                 "roll_number": s.roll_number,
                 "name": s.name,
                 "gender": s.gender,

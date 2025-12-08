@@ -7,13 +7,14 @@ from typing import Optional
 from app.auth.dependencies import get_current_user
 from app.database import get_db
 from app.models import User, Class, UserRole
+from app.schemas.certificate_staff_listing_students import StaffClassesResponse,ClassWithStudentsResponse
 
 router = APIRouter(
     prefix="/certificate-staff",
     tags=["Certificate Incharge Attendance Listing"]
 )
 
-@router.get("/list-classes")
+@router.get("/list-classes",response_model=StaffClassesResponse)
 async def list_classes_for_certificate_incharge(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -43,7 +44,7 @@ async def list_classes_for_certificate_incharge(
 
     classes = [
         {
-            "class_id": c.id,
+            "class_id": str(c.id),
             "class_name": c.class_name_ref.name,
             "department": c.department,
             "section": c.section,
@@ -53,7 +54,7 @@ async def list_classes_for_certificate_incharge(
     ]
 
     return {
-        "staff_id": current_user.id,
+        "staff_id": str(current_user.id),
         "staff_name": current_user.staff_name,
         "assigned_classes_count": len(classes),
         "classes": classes
@@ -61,7 +62,7 @@ async def list_classes_for_certificate_incharge(
 
 
 
-@router.get("/class/{class_id}/students")
+@router.get("/class/{class_id}/students", response_model=ClassWithStudentsResponse)
 async def get_students_by_class(
     class_id: str,
     present: Optional[bool] = None,
@@ -103,7 +104,7 @@ async def get_students_by_class(
         filtered_students = [s for s in cls.students if s.present == present]
 
     return {
-        "class_id": cls.id,
+        "class_id": str(cls.id),
         "class_name": cls.class_name_ref.name,
         "department": cls.department,
         "section": cls.section,
@@ -111,7 +112,7 @@ async def get_students_by_class(
         "students_count": len(filtered_students),
         "students": [
             {
-                "student_id": s.id,
+                "student_id": str(s.id),
                 "roll_number": s.roll_number,
                 "name": s.name,
                 "gender": s.gender,

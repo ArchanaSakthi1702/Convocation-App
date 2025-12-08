@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import User,UserRole,Student,Class
 from app.database import get_db
+from app.schemas.class_summary import ClassSummaryResponse,ClassSummaryItem
 from app.auth.dependencies import get_current_user
 
 
@@ -14,7 +15,7 @@ router=APIRouter(
 )
 
 
-@router.get("/summary")
+@router.get("/summary", response_model=ClassSummaryResponse)
 async def attendance_summary(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -30,61 +31,62 @@ async def attendance_summary(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # --- 2. Determine accessible classes based on role ---
-    accessible_class_ids = set()
-
+    # --- 2. Determine accessible classes ---
     if current_user.role == UserRole.admin:
-        # Admin → all classes
         class_result = await db.execute(select(Class))
-        classes = class_result.scalars().all()
-        accessible_class_ids = {c.id for c in classes}
-
+        classes_list = class_result.scalars().all()
+        accessible_class_ids = {c.id for c in classes_list}
     else:
-        # Attendance + Certificate incharge → only assigned classes
-        accessible_class_ids = {c.id for c in user.assigned_classes}
+        classes_list = user.assigned_classes
+        accessible_class_ids = {c.id for c in classes_list}
 
     if not accessible_class_ids:
-        return {"message": "No assigned classes", "summary": []}
+        return ClassSummaryResponse(role=current_user.role, summary=[])
 
-    # --- 3. Fetch all students belonging to these classes ---
+    # --- 3. INIT summary for all classes ---
+    summary_dict = {
+        str(cls.id): {
+            "class_id": str(cls.id),
+            "class_name": "",
+            "total_students": 0,
+            "present_count": 0,
+            "absent_count": 0,
+        }
+        for cls in classes_list
+    }
+
+    # --- 4. Fetch students ---
     student_result = await db.execute(
-        select(Student)
-        .where(Student.class_id.in_(accessible_class_ids))
+        select(Student).where(Student.class_id.in_(accessible_class_ids))
     )
     students = student_result.scalars().all()
 
-    # --- 4. Prepare summary structured by class ---
-    summary = {}
-
+    # Count students
     for student in students:
         cid = str(student.class_id)
-
-        if cid not in summary:
-            summary[cid] = {
-                "class_id": cid,
-                "class_name": "",   # Will fill later
-                "total_students": 0,
-                "present_count": 0,
-                "absent_count": 0
-            }
-
-        summary[cid]["total_students"] += 1
+        summary_dict[cid]["total_students"] += 1
         if student.present:
-            summary[cid]["present_count"] += 1
+            summary_dict[cid]["present_count"] += 1
         else:
-            summary[cid]["absent_count"] += 1
+            summary_dict[cid]["absent_count"] += 1
 
-    # --- 5. Load class names for final summary ---
+    # --- 5. Load class names ---
     class_details = await db.execute(
-        select(Class).options(selectinload(Class.class_name_ref))
+        select(Class)
+        .options(selectinload(Class.class_name_ref))
         .where(Class.id.in_(accessible_class_ids))
     )
     classes = class_details.scalars().all()
 
     for cls in classes:
-        summary[str(cls.id)]["class_name"] = cls.class_name_ref.name
+        summary_dict[str(cls.id)]["class_name"] = cls.class_name_ref.name
 
-    return {
-        "role": current_user.role,
-        "summary": list(summary.values())
-    }
+    # Convert dict → Pydantic models
+    final_summary = [
+        ClassSummaryItem(**item) for item in summary_dict.values()
+    ]
+
+    return ClassSummaryResponse(
+        role=current_user.role.value,
+        summary=final_summary
+    )

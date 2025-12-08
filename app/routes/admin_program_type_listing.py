@@ -5,8 +5,15 @@ from uuid import UUID
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import ProgramType,Class,ClassName
+from app.models import ProgramType,Class
 from app.auth.dependencies import is_admin  # your admin dependency
+
+from app.schemas.program_types import (
+    ProgramTypeListResponse,
+    ProgramTypeItem,
+    ClassItem,
+    ClassListByProgramTypeResponse
+)
 
 router = APIRouter(
     prefix="/admin/program-types",
@@ -15,36 +22,36 @@ router = APIRouter(
 )
 
 
-@router.get("/list-program-types")
+# ---------------------------------------------------
+# 1. List Program Types
+# ---------------------------------------------------
+@router.get("/list-program-types", response_model=ProgramTypeListResponse)
 async def list_program_types(db: AsyncSession = Depends(get_db)):
-    """
-    List all Program Types (UG/PG/etc.)
-    Accessible only by admin.
-    """
-
     result = await db.execute(select(ProgramType))
     program_types = result.scalars().all()
 
-    return {
-        "count": len(program_types),
-        "program_types": [
-            {
-                "id":  str(pt.id),
-                "type_name": pt.type_name
-            }
+    return ProgramTypeListResponse(
+        count=len(program_types),
+        program_types=[
+            ProgramTypeItem(
+                id=str(pt.id),
+                type_name=pt.type_name
+            )
             for pt in program_types
         ]
-    }
+    )
 
 
-
-
-@router.get("/get-classes-by-program-type-name/{program_type_name}")
+# ---------------------------------------------------
+# 2. Get Classes by Program Type Name
+# ---------------------------------------------------
+@router.get("/get-classes-by-program-type-name/{program_type_name}",
+            response_model=ClassListByProgramTypeResponse)
 async def get_classes_by_program_type_name(
     program_type_name: str,
     db: AsyncSession = Depends(get_db)
 ):
-    # Find ProgramType by name
+
     result = await db.execute(
         select(ProgramType).where(ProgramType.type_name == program_type_name)
     )
@@ -56,7 +63,6 @@ async def get_classes_by_program_type_name(
             detail=f"Program type '{program_type_name}' not found"
         )
 
-    # Now fetch classes
     result = await db.execute(
         select(Class)
         .options(
@@ -68,35 +74,38 @@ async def get_classes_by_program_type_name(
 
     classes = result.scalars().all()
 
-    return {
-        "program_type": program_type.type_name,
-        "count": len(classes),
-        "classes": [
-            {
-                "id":str(c.id),
-                "class_name": c.class_name_ref.name,
-                "program_type": c.program_type_ref.type_name,
-                "department": c.department,
-                "section": c.section,
-                "regular_or_self": c.regular_or_self,
-            }
+    return ClassListByProgramTypeResponse(
+        program_type=program_type.type_name,
+        count=len(classes),
+        classes=[
+            ClassItem(
+                id=str(c.id),
+                class_name=c.class_name_ref.name,
+                program_type=c.program_type_ref.type_name,
+                department=c.department,
+                section=c.section,
+                regular_or_self=c.regular_or_self,
+            )
             for c in classes
-        ],
-    }
+        ]
+    )
 
 
-@router.get("/get-classes-by-program-type-id/{program_type_id}")
+# ---------------------------------------------------
+# 3. Get Classes by Program Type ID
+# ---------------------------------------------------
+@router.get("/get-classes-by-program-type-id/{program_type_id}",
+            response_model=ClassListByProgramTypeResponse)
 async def get_classes_by_program_type_id(
     program_type_id: str,
     db: AsyncSession = Depends(get_db)
 ):
-    # Validate UUID
+
     try:
         program_type_uuid = UUID(program_type_id)
     except:
         raise HTTPException(status_code=400, detail="Invalid program_type_id")
 
-    # Check program type exists
     result = await db.execute(
         select(ProgramType).where(ProgramType.id == program_type_uuid)
     )
@@ -105,7 +114,6 @@ async def get_classes_by_program_type_id(
     if not program_type:
         raise HTTPException(status_code=404, detail="Program type not found")
 
-    # Fetch all classes under this program type
     result = await db.execute(
         select(Class)
         .options(
@@ -117,18 +125,18 @@ async def get_classes_by_program_type_id(
 
     classes = result.scalars().all()
 
-    return {
-        "program_type": program_type.type_name,
-        "count": len(classes),
-        "classes": [
-            {
-                "id": str(c.id),
-                "class_name": c.class_name_ref.name,
-                "program_type": c.program_type_ref.type_name,
-                "department": c.department,
-                "section": c.section,
-                "regular_or_self": c.regular_or_self,
-            }
+    return ClassListByProgramTypeResponse(
+        program_type=program_type.type_name,
+        count=len(classes),
+        classes=[
+            ClassItem(
+                id=str(c.id),
+                class_name=c.class_name_ref.name,
+                program_type=c.program_type_ref.type_name,
+                department=c.department,
+                section=c.section,
+                regular_or_self=c.regular_or_self,
+            )
             for c in classes
-        ],
-    }
+        ]
+    )

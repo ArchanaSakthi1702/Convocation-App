@@ -18,3 +18,18 @@ class StudentCreate(BaseModel):
 
 class StudentBulkCreate(BaseModel):
     students: List[StudentCreate]
+
+
+class StudentItem(BaseModel):
+    student_id: str
+    roll_number: str
+    name: str
+    gender: Optional[str] = None
+    present: bool
+
+
+class StudentListByClassResponse(BaseModel):
+    class_id: str
+    total_students: int
+    filtered_by_present: Optional[bool] = None
+    students: List[StudentItem]
