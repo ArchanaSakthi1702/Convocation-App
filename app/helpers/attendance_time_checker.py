@@ -9,7 +9,7 @@ def check_attendance_time_limit():
     ist = pytz.timezone("Asia/Kolkata")
     now_ist = datetime.now(ist).time()
 
-    cutoff = time(10, 0, 0)  # 10:00 AM IST
+    cutoff = time(10, 50, 0)  # 10:00 AM IST
 
     if now_ist > cutoff:
         raise HTTPException(

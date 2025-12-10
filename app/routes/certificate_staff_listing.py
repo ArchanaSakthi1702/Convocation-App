@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
+from uuid import UUID
 
 from app.auth.dependencies import get_current_user
 from app.database import get_db
@@ -72,6 +73,12 @@ async def get_students_by_class(
     # Allowed only for certificate incharge
     if current_user.role != UserRole.certificate_incharge:
         raise HTTPException(status_code=403, detail="Not authorized")
+    
+    try:
+        class_uuid = UUID(class_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid staff ID format")
+
 
     # Load class with students
     result = await db.execute(
@@ -80,7 +87,7 @@ async def get_students_by_class(
             selectinload(Class.students),
             selectinload(Class.class_name_ref)
         )
-        .where(Class.id == class_id)
+        .where(Class.id == class_uuid)
     )
     cls = result.scalar_one_or_none()
     if not cls:
