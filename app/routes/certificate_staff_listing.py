@@ -77,7 +77,7 @@ async def get_students_by_class(
     try:
         class_uuid = UUID(class_id)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid staff ID format")
+        raise HTTPException(status_code=400, detail="Invalid class ID format")
 
 
     # Load class with students
