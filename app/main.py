@@ -15,6 +15,7 @@ from app.routes.staff_attendance_marking import router as staff_attendance_marki
 from app.routes.certificate_staff_listing import router as certificate_staff_router
 from app.routes.admin_staff_listing import router as admin_staff_listing_router
 from app.routes.admin_staff_deletion import router as admin_staff_deletion_router
+from app.routes.admin_report import router as admin_report_router
 from app.routes.admin_attendance_certificate_incharge_class_summary import router as summary_router
 
 @asynccontextmanager
@@ -69,3 +70,4 @@ app.include_router(certificate_staff_router)
 app.include_router(admin_staff_listing_router)
 app.include_router(admin_staff_deletion_router)
 app.include_router(summary_router)
+app.include_router(admin_report_router)
