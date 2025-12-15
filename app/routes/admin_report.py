@@ -2,8 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+)
+from reportlab.lib.styles import getSampleStyleSheet,ParagraphStyle
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from io import BytesIO
 from sqlalchemy.orm import selectinload
@@ -17,18 +20,17 @@ router = APIRouter(
     tags=["Reports"]
     )
 
-@router.get("/present-students/pdf")
+@router.get("/present-students/pdf", dependencies=[Depends(is_admin)])
 async def generate_present_students_pdf(
     db: AsyncSession = Depends(get_db)
 ):
-    # Fetch all classes with relations
     stmt = (
-    select(Class)
-    .options(
-        selectinload(Class.class_name_ref),
-        selectinload(Class.program_type_ref),
+        select(Class)
+        .options(
+            selectinload(Class.class_name_ref),
+            selectinload(Class.program_type_ref),
+        )
     )
-)
     result = await db.execute(stmt)
     classes = result.scalars().all()
 
@@ -36,13 +38,35 @@ async def generate_present_students_pdf(
         raise HTTPException(status_code=404, detail="No classes found")
 
     buffer = BytesIO()
-    pdf = SimpleDocTemplate(buffer, pagesize=A4)
+    pdf = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=30,
+        leftMargin=30,
+        topMargin=30,
+        bottomMargin=30,
+    )
 
     styles = getSampleStyleSheet()
     elements = []
 
+    # -------------------------
+    # Title
+    # -------------------------
+    title_style = ParagraphStyle(
+        "TitleStyle",
+        parent=styles["Title"],
+        alignment=1,
+        textColor=colors.darkblue
+    )
+
+    elements.append(Paragraph("Present Students Report", title_style))
+    elements.append(Spacer(1, 20))
+
+    # -------------------------
+    # Loop classes
+    # -------------------------
     for cls in classes:
-        # Fetch present students of this class
         student_stmt = select(Student).where(
             Student.class_id == cls.id,
             Student.present == True
@@ -51,37 +75,59 @@ async def generate_present_students_pdf(
         students = student_result.scalars().all()
 
         if not students:
-            continue  # skip class if no present students
+            continue
 
-        # Class heading
-        class_title = (
-            f"<b>Class:</b> {cls.class_name_ref.name} | "
-            f"<b>Program:</b> {cls.program_type_ref.type_name} | "
-            f"<b>Dept:</b> {cls.department or '-'} | "
-            f"<b>Section:</b> {cls.section or '-'}"
-        )
+        # Class info box
+        class_info = f"""
+        <b>Class:</b> {cls.class_name_ref.name} &nbsp;&nbsp;
+        <b>Program:</b> {cls.program_type_ref.type_name} &nbsp;&nbsp;
+        <b>Dept:</b> {cls.department or '-'} &nbsp;&nbsp;
+        <b>Section:</b> {cls.section or '-'}
+        """
 
-        elements.append(Paragraph(class_title, styles["Heading3"]))
-        elements.append(Spacer(1, 10))
+        elements.append(Paragraph(class_info, styles["Normal"]))
+        elements.append(Spacer(1, 8))
 
         # Table data
-        table_data = [["Roll No", "Name", "Gender"]]
+        table_data = [["Roll No", "Student Name", "Gender"]]
 
-        for student in students:
+        for s in students:
             table_data.append([
-                student.roll_number,
-                student.name,
-                student.gender
+                s.roll_number,
+                s.name,
+                s.gender
             ])
 
-        table = Table(table_data, colWidths=[100, 250, 100])
+        table = Table(
+            table_data,
+            colWidths=[90, 260, 90],
+            repeatRows=1
+        )
+
+        table.setStyle(TableStyle([
+            # Header
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2F5597")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+
+            # Body
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("ALIGN", (0, 1), (-1, -1), "CENTER"),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+
+            # Alternate row color
+            ("BACKGROUND", (0, 1), (-1, -1), colors.whitesmoke),
+        ]))
+
         elements.append(table)
         elements.append(Spacer(1, 25))
 
     if not elements:
         raise HTTPException(
             status_code=404,
-            detail="No present students found in any class"
+            detail="No present students found"
         )
 
     pdf.build(elements)
