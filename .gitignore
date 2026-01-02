@@ -2,3 +2,5 @@
 *venv/
 *.json
 *cache*
+student_record.py
+json_helper.py
