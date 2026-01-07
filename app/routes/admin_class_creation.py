@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from typing import List
 from uuid import UUID
 
 from app.database import get_db
-from app.models import Class, ClassName, ProgramType
+from app.models import Class, ClassName, ProgramType,Student
 from app.auth.dependencies import is_admin
 from app.schemas.class_schemas import ClassCreate
 
@@ -139,13 +140,15 @@ async def bulk_create_classes(classes: List[ClassCreate], db: AsyncSession = Dep
     }
 
 
-@router.delete("/delete-class/{class_id}",tags=["Admin Student Deletion"])
+@router.delete("/delete-class/{class_id}")
 async def delete_class(
     class_id: UUID,
     db: AsyncSession = Depends(get_db)
 ):
+    """Used Only for Development Purpose"""
     result = await db.execute(
         select(Class).where(Class.id == class_id)
+        .options(selectinload(Class.students))
     )
     class_obj = result.scalars().first()
 
@@ -154,11 +157,17 @@ async def delete_class(
             status_code=404,
             detail="Class not found"
         )
+    
+    if class_obj.students:
+        stud_len=len(class_obj.students)
+        for stud in class_obj.students:
+            await db.delete(stud)
 
     await db.delete(class_obj)
     await db.commit()
 
     return {
         "message": "Class deleted successfully",
-        "class_id": str(class_id)
+        "class_id": str(class_id),
+        "No.of Students Deleted":stud_len
     }
