@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
-import uuid
+from uuid import UUID
 
 from app.database import get_db
 from app.models import Class, ClassName, ProgramType
@@ -136,4 +136,29 @@ async def bulk_create_classes(classes: List[ClassCreate], db: AsyncSession = Dep
         "message": f"{len(created_classes)} classes created successfully",
         "created_class_ids": [str(c.id) for c in created_classes],
         "skipped": skipped
+    }
+
+
+@router.delete("/delete-class/{class_id}",tags=["Admin Student Deletion"])
+async def delete_class(
+    class_id: UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(Class).where(Class.id == class_id)
+    )
+    class_obj = result.scalars().first()
+
+    if not class_obj:
+        raise HTTPException(
+            status_code=404,
+            detail="Class not found"
+        )
+
+    await db.delete(class_obj)
+    await db.commit()
+
+    return {
+        "message": "Class deleted successfully",
+        "class_id": str(class_id)
     }
