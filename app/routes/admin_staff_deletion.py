@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete,select
+from sqlalchemy.orm import selectinload
 from uuid import UUID
 
 
@@ -51,3 +52,32 @@ async def delete_staff(staff_id: str, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     return {"message": f"Staff {staff.staff_name or staff_id} deleted successfully"}
+
+
+@router.delete("/delete-staff/{roll_no}")
+async def delete_staff_by_roll_no(
+    roll_no: str,
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(User).where(User.staff_roll_number == roll_no).options(selectinload(User.assigned_classes))
+    )
+    teacher = result.scalar_one_or_none()
+
+    if not teacher:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Staff not found for roll no {roll_no}"
+        )
+
+    # Clear class assignments (important for M2M)
+    teacher.assigned_classes.clear()
+
+    await db.delete(teacher)
+    await db.commit()
+
+    return {
+        "message": "Staff deleted successfully",
+        "staff_roll_number": roll_no,
+        "staff_id": str(teacher.id)
+    }

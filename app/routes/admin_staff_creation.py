@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-import uuid
 from typing import List
+from sqlalchemy.exc import IntegrityError
 
 from app.database import get_db
 from app.models import User
 from app.helpers.class_finder_for_staffs_creation import get_classes_from_request
-from app.schemas.staff_schemas import StaffCreate
+from app.schemas.staff_schemas import StaffCreate,StaffUpdate
 from app.auth.dependencies import is_admin
 
 router = APIRouter(
@@ -82,3 +82,55 @@ async def bulk_create_staff(staff_list: List[StaffCreate], db: AsyncSession = De
         "message": f"{len(created_staffs)} staffs created successfully",
         "staff_ids": [str(s.id) for s in created_staffs]
     }
+
+
+@router.patch("/update-staff_roll_no")
+async def update_staff_roll_no(
+    data: List[StaffUpdate],
+    db: AsyncSession = Depends(get_db)
+):
+    res = {"successes": [], "failures": []}
+
+    try:
+        for staff in data:
+            result = await db.execute(
+                select(User).where(User.staff_roll_number == staff.old)
+            )
+            db_staff = result.scalar_one_or_none()
+
+            if not db_staff:
+                res["failures"].append({
+                    "old": staff.old,
+                    "reason": "Old roll number not found"
+                })
+                continue
+
+            # check if new roll number already exists
+            result = await db.execute(
+                select(User).where(User.staff_roll_number == staff.new)
+            )
+            if result.scalar_one_or_none():
+                res["failures"].append({
+                    "old": staff.old,
+                    "reason": "New roll number already exists"
+                })
+                continue
+
+            db_staff.staff_roll_number = staff.new
+            res["successes"].append(staff.old)
+
+        await db.commit()
+
+    except IntegrityError:
+        await db.rollback()
+        return {
+            "error": "Database constraint error",
+            "detail": "Duplicate roll number detected"
+        }
+
+    except Exception as e:
+        await db.rollback()
+        raise e
+
+    return res
+

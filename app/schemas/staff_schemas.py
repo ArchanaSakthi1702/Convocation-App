@@ -27,3 +27,8 @@ class StaffRead(BaseModel):
 class StaffListResponse(BaseModel):
     count: int
     staffs: List[StaffRead]
+
+
+class StaffUpdate(BaseModel):
+    old:str
+    new:str
