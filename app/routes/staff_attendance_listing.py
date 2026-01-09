@@ -22,7 +22,8 @@ async def list_students_for_attendance_incharge(
 ):
 
     # Only attendance-incharge is allowed
-    if current_user.role != UserRole.attendance_incharge:
+    if (current_user.role != UserRole.attendance_incharge and 
+        not getattr(current_user,"can_access_both",False)):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Load user with assigned classes and their students + class_name_ref

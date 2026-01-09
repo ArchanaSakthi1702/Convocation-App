@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from typing import List
 from uuid import UUID
@@ -8,7 +9,7 @@ from uuid import UUID
 from app.database import get_db
 from app.models import Class, ClassName, ProgramType,Student
 from app.auth.dependencies import is_admin
-from app.schemas.class_schemas import ClassCreate
+from app.schemas.class_schemas import ClassCreate,ClassUpdate
 
 router = APIRouter(
     tags=["Admin Classes"],
@@ -170,4 +171,75 @@ async def delete_class(
         "message": "Class deleted successfully",
         "class_id": str(class_id),
         "No.of Students Deleted":stud_len
+    }
+
+
+@router.patch("/class/{class_id}")
+async def update_class(
+    class_id: UUID,
+    data: ClassUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    # Fetch class
+    result = await db.execute(
+        select(Class).where(Class.id == class_id)
+    )
+    db_class = result.scalar_one_or_none()
+
+    if not db_class:
+        raise HTTPException(status_code=404, detail="Class not found")
+
+    try:
+        # Update class name
+        if data.class_name:
+            result = await db.execute(
+                select(ClassName).where(ClassName.name == data.class_name)
+            )
+            class_name_obj = result.scalar_one_or_none()
+
+            if not class_name_obj:
+                class_name_obj = ClassName(name=data.class_name)
+                db.add(class_name_obj)
+                await db.flush()
+
+            db_class.class_name_id = class_name_obj.id
+
+        # Update program type
+        if data.program_type:
+            result = await db.execute(
+                select(ProgramType).where(
+                    ProgramType.type_name == data.program_type
+                )
+            )
+            program_type_obj = result.scalar_one_or_none()
+
+            if not program_type_obj:
+                program_type_obj = ProgramType(type_name=data.program_type)
+                db.add(program_type_obj)
+                await db.flush()
+
+            db_class.program_type_id = program_type_obj.id
+
+        # Simple fields
+        if data.department is not None:
+            db_class.department = data.department
+
+        if data.section is not None:
+            db_class.section = data.section
+
+        if data.regular_or_self is not None:
+            db_class.regular_or_self = data.regular_or_self
+
+        await db.commit()
+
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="Duplicate or invalid class data"
+        )
+
+    return {
+        "message": "Class updated successfully",
+        "class_id": str(db_class.id)
     }

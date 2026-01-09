@@ -29,18 +29,26 @@ async def get_current_user(
     token = credentials.credentials
     try:
         payload = decode_access_token(token)
+
         user_id = payload.get("user_id")
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
+
+        can_access_both = payload.get("can_access_both", False)
+
         if isinstance(user_id, str):
             user_id = uuid.UUID(user_id)
-        else:
-            user_id = user_id
+
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
 
     user = await get_user_by_id(user_id, db)
+
+    # ✅ Attach permission dynamically (NO model change)
+    user.can_access_both = can_access_both
+
     return user
+
 
 
 # ---------------- Role-based dependencies ---------------- #
@@ -51,20 +59,39 @@ async def is_admin(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-async def is_staff_of_this_class(class_id: str, current_user: User = Depends(get_current_user)):
-    if current_user.role != UserRole.attendance_incharge:
+async def is_staff_of_this_class(
+    class_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    if (
+        current_user.role != UserRole.attendance_incharge
+        and not getattr(current_user, "can_access_both", False)
+    ):
         raise HTTPException(status_code=403, detail="Attendance staff access required")
+
     class_id_bytes = uuid.UUID(class_id)
-    # Check if staff has this class assigned
+
     if not any(c.id == class_id_bytes for c in current_user.assigned_classes):
         raise HTTPException(status_code=403, detail="Not assigned to this class")
+
     return current_user
 
 
-async def is_certificate_staff_of_this_class(class_id: str, current_user: User = Depends(get_current_user)):
-    if current_user.role != UserRole.certificate_incharge:
+
+async def is_certificate_staff_of_this_class(
+    class_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    if (
+        current_user.role != UserRole.certificate_incharge
+        and not getattr(current_user, "can_access_both", False)
+    ):
         raise HTTPException(status_code=403, detail="Certificate staff access required")
+
     class_id_bytes = uuid.UUID(class_id)
+
     if not any(c.id == class_id_bytes for c in current_user.assigned_classes):
         raise HTTPException(status_code=403, detail="Not assigned to this class")
+
     return current_user
+

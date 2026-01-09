@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-
+from typing import Optional
 
 class ClassCreate(BaseModel):
     class_name: str
@@ -7,3 +7,10 @@ class ClassCreate(BaseModel):
     department: str = None
     section: str = None
     regular_or_self: str = None  # "Regular" / "Self-Financed"
+
+class ClassUpdate(BaseModel):
+    class_name: Optional[str] = None
+    program_type: Optional[str] = None
+    department: Optional[str] = None
+    section: Optional[str] = None
+    regular_or_self: Optional[str] = None

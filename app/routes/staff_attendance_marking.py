@@ -25,7 +25,8 @@ async def mark_attendance(
 ):
 
     # 1. Only attendance incharge allowed
-    if current_user.role != UserRole.attendance_incharge:
+    if (current_user.role != UserRole.attendance_incharge and 
+        not getattr(current_user,"can_access_both",False)):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # 2. Time limit check

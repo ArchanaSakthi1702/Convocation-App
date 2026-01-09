@@ -21,8 +21,9 @@ async def list_classes_for_certificate_incharge(
     db: AsyncSession = Depends(get_db)
 ):
     # Allowed only for certificate incharge
-    if current_user.role != UserRole.certificate_incharge:
+    if (current_user.role != UserRole.certificate_incharge and not getattr(current_user,"can_access_both",False)):
         raise HTTPException(status_code=403, detail="Not authorized")
+
 
     result = await db.execute(
         select(User)
@@ -71,7 +72,7 @@ async def get_students_by_class(
     db: AsyncSession = Depends(get_db)
 ):
     # Allowed only for certificate incharge
-    if current_user.role != UserRole.certificate_incharge:
+    if (current_user.role != UserRole.certificate_incharge and not getattr(current_user,"can_access_both",False)):
         raise HTTPException(status_code=403, detail="Not authorized")
     
     try:
