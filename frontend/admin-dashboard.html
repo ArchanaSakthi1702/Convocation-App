@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f3f4f6;
+        }
+
+        header {
+            background: #1e3a8a;
+            color: white;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 20px;
+        }
+
+        .logout-btn {
+            background: #ef4444;
+            border: none;
+            padding: 8px 14px;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .container {
+            padding: 40px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.08);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.12);
+        }
+
+        .card h2 {
+            margin-bottom: 10px;
+            color: #1f2933;
+        }
+
+        .card p {
+            color: #6b7280;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Admin Dashboard</h1>
+    <button class="logout-btn" onclick="logout()">Logout</button>
+</header>
+
+<div class="container">
+    <div class="grid">
+
+        <div class="card" onclick="goToStudents()">
+            <h2>Students</h2>
+            <p>Manage students, view records & attendance</p>
+        </div>
+
+        <div class="card" onclick="goToStaffs()">
+            <h2>Staffs</h2>
+            <p>Manage staff details and permissions</p>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // 🔐 Check login
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+        window.location.href = "admin-login.html";
+    }
+
+    function goToStudents() {
+        window.location.href = "students.html";
+    }
+
+    function goToStaffs() {
+        window.location.href = "staffs.html";
+    }
+
+    function logout() {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("token_type");
+        window.location.href = "admin-login.html";
+    }
+</script>
+
+</body>
+</html>

@@ -8,7 +8,7 @@ import enum
 from app.database import get_db
 from app.models import User,Class,ProgramType
 from app.auth.dependencies import is_admin
-from app.schemas.staff_schemas import StaffRead,StaffListResponse,StaffRead2
+from app.schemas.staff_schemas import StaffRead,StaffListResponse,StaffRead2,AssignedClassRead
 
 router=APIRouter(
     prefix="/admin",
@@ -148,21 +148,27 @@ async def list_all_staff2(
     filtered_staff = []
 
     for staff in staff_list:
+        # Handle None for staff_name / staff_roll_number
+        name = staff.staff_name or ""
+        roll = staff.staff_roll_number or ""
+
+        # Convert assigned_classes to list of AssignedClassRead
+        assigned_classes = [
+            AssignedClassRead(
+                id=str(c.id),
+                name=c.class_name_ref.name if c.class_name_ref else ""
+            )
+            for c in staff.assigned_classes
+        ]
+
         filtered_staff.append(
             StaffRead2(
                 id=str(staff.id),
-                staff_name=staff.staff_name,
-                staff_roll_number=staff.staff_roll_number,
+                staff_name=name,
+                staff_roll_number=roll,
                 role=staff.role.value if isinstance(staff.role, enum.Enum) else staff.role,
-                gender=staff.gender,
-                assigned_classes=[
-                    {
-                        "id": str(c.id),
-                        "name": c.class_name_ref.name
-                    }
-                    for c in staff.assigned_classes
-                    if c.class_name_ref
-                ]
+                gender=staff.gender or "",
+                assigned_classes=assigned_classes
             )
         )
 
@@ -170,3 +176,4 @@ async def list_all_staff2(
         "count": len(filtered_staff),
         "staffs": filtered_staff
     }
+
