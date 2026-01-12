@@ -74,7 +74,9 @@ class Class(Base):
     section = Column(String, nullable=True)
     regular_or_self = Column(String, nullable=True)
 
-    students = relationship("Student", back_populates="class_ref")
+    students = relationship("Student", 
+                            back_populates="class_ref",
+                            order_by="Student.roll_number")
     assigned_staff = relationship(
         "User",
         secondary=staff_classes,

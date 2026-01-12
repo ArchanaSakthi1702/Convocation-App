@@ -89,6 +89,7 @@ async def get_students_by_class(
             selectinload(Class.class_name_ref)
         )
         .where(Class.id == class_uuid)
+
     )
     cls = result.scalar_one_or_none()
     if not cls:
