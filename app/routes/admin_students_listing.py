@@ -42,7 +42,11 @@ async def get_students_by_class(
         raise HTTPException(status_code=404, detail="Class not found")
 
     # Build query
-    query = select(Student).where(Student.class_id == class_uuid)
+    query = (
+        select(Student)
+        .where(Student.class_id == class_uuid)
+        .order_by(Student.roll_number.asc())
+    )
 
     # Optional filter
     if present is not None:
