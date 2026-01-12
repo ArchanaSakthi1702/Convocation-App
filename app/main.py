@@ -18,6 +18,8 @@ from app.routes.admin_staff_deletion import router as admin_staff_deletion_route
 from app.routes.admin_report import router as admin_report_router
 from app.routes.admin_attendance_certificate_incharge_class_summary import router as summary_router
 from app.routes.admin_student_deletion import router as admin_student_deleting_router
+from app.routes.admin_student_updation import router as admin_student_updation_router
+from app.routes.admin_staff_updation import router as admin_staff_updation_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -73,3 +75,5 @@ app.include_router(admin_staff_deletion_router)
 app.include_router(summary_router)
 app.include_router(admin_report_router)
 app.include_router(admin_student_deleting_router)
+app.include_router(admin_student_updation_router)
+app.include_router(admin_staff_updation_router)
