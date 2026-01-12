@@ -116,16 +116,15 @@ async def generate_present_students_pdf(
             # Class info (NO program here)
             class_info = f"""
             <b>Class:</b> {cls.class_name_ref.name} &nbsp;&nbsp;
-            <b>Dept:</b> {cls.department or '-'} &nbsp;&nbsp;
             <b>Section:</b> {cls.section or '-'}
             """
 
             elements.append(Paragraph(class_info, styles["Normal"]))
             elements.append(Spacer(1, 8))
 
-            table_data = [["Roll No", "Student Name", "Gender"]]
+            table_data = [["Roll No", "Student Name"]]
             for s in students:
-                table_data.append([s.roll_number, s.name, s.gender])
+                table_data.append([s.roll_number, s.name])
 
             table = Table(
                 table_data,
@@ -134,16 +133,20 @@ async def generate_present_students_pdf(
             )
 
             table.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2F5597")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2F5597")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("ALIGN", (0, 0), (-1, 0), "CENTER"),
 
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                ("ALIGN", (0, 1), (-1, -1), "CENTER"),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("BACKGROUND", (0, 1), (-1, -1), colors.whitesmoke),
-            ]))
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+
+            ("ALIGN", (0, 1), (0, -1), "CENTER"),  # Roll No
+            ("ALIGN", (1, 1), (1, -1), "LEFT"),    # Student Name
+
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("BACKGROUND", (0, 1), (-1, -1), colors.whitesmoke),
+        ]))
+
 
             elements.append(table)
             elements.append(Spacer(1, 25))
