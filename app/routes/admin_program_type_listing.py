@@ -162,15 +162,13 @@ async def list_all_classes(db: AsyncSession = Depends(get_db)):
 
     class_list = []
     for c in classes:
-        class_list.append(
-            ClassItem(
-                id=str(c.id),
-                class_name=c.class_name_ref.name if c.class_name_ref else "",
-                program_type=c.program_type_ref.type_name if c.program_type_ref else "",
-                department=c.department or "",
-                section=c.section or "",
-                regular_or_self=c.regular_or_self or ""
-            )
-        )
+        class_list.append({
+            "id": str(c.id),
+            "class_name": c.class_name_ref.name if c.class_name_ref else "",
+            "program_type": c.program_type_ref.type_name if c.program_type_ref else "",
+            "department": c.department or "",
+            "section": c.section or "",
+            "regular_or_self": c.regular_or_self or ""
+        })
 
     return ClassListResponse(count=len(class_list), classes=class_list)

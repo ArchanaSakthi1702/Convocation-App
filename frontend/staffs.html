@@ -104,6 +104,34 @@
     </thead>
     <tbody id="staffTable"></tbody>
 </table>
+<!-- Update Form Modal -->
+<div id="updateModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);justify-content:center;align-items:center;">
+    <div style="background:white;padding:20px;width:400px;border-radius:8px;position:relative;">
+        <h2>Update Staff</h2>
+        <form id="updateForm">
+            <input type="text" id="update_name" placeholder="Staff Name" required style="width:100%;margin-bottom:10px;padding:8px;" />
+            
+            <select id="update_role" required style="width:100%;margin-bottom:10px;padding:8px;">
+                <option value="">Select Role</option>
+                <option value="certificate_incharge">Certificate Incharge</option>
+                <option value="attendance_incharge">Attendance Incharge</option>
+            </select>
+            
+            <select id="update_gender" required style="width:100%;margin-bottom:10px;padding:8px;">
+                <option value="">Select Gender</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+            </select>
+            
+            <label>Assigned Classes</label>
+            <select id="update_classes" multiple size="5" style="width:100%;margin-bottom:10px;padding:8px;"></select>
+            
+            <button type="submit" style="width:100%;padding:10px;background:#2563eb;color:white;border:none;border-radius:4px;">Update</button>
+            <button type="button" onclick="closeModal()" style="position:absolute;top:10px;right:10px;">✖</button>
+        </form>
+    </div>
+</div>
+
 
 <script>
     const BASE_URL = "https://convocation-app.onrender.com";
@@ -170,7 +198,7 @@
                 <td>${staff.gender}</td>
                 <td>${classes}</td>
                 <td class="actions">
-                    <button onclick="updateStaff('${staff.staff_roll_number}')">Edit</button>
+                    <button onclick='openUpdateModal(${JSON.stringify(staff)})'>Edit</button>
                     <button class="danger" onclick="deleteStaff('${staff.id || staff.staff_id}')">Delete</button>
                 </td>
             `;
@@ -188,33 +216,77 @@
 
         loadStaffs();
     }
-
-    async function updateStaff(rollNumber) {
-        const name = prompt("Enter new staff name (leave empty to skip)");
-        const role = prompt("Enter role (admin / certificate_incharge / attendance_incharge)");
-        const gender = prompt("Enter gender (male / female)");
-
-        const payload = {};
-        if (name) payload.staff_name = name;
-        if (role) payload.role = role;
-        if (gender) payload.gender = gender;
-
-        if (Object.keys(payload).length === 0) return;
-
-        await fetch(
-            `${BASE_URL}/admin/staff/update/by-roll/${rollNumber}`,
-            {
-                method: "PATCH",
-                headers,
-                body: JSON.stringify(payload)
-            }
-        );
-
-        loadStaffs();
-    }
-
     // Initial load
     loadStaffs();
+    let selectedStaffRoll = "";
+let allClasses = [];
+
+async function openUpdateModal(staff) {
+    selectedStaffRoll = staff.staff_roll_number;
+
+    // Pre-fill the fields
+    document.getElementById("update_name").value = staff.staff_name;
+    document.getElementById("update_role").value = staff.role;
+    document.getElementById("update_gender").value = staff.gender;
+
+    const classSelect = document.getElementById("update_classes");
+    classSelect.innerHTML = "";
+
+    // Fetch all classes if not already
+    if (allClasses.length === 0) {
+        const res = await fetch(`${BASE_URL}/admin/program-types/list-classes`, { headers });
+        const data = await res.json();
+        allClasses = data.classes;
+    }
+
+    // Populate multi-select with all classes
+    allClasses.forEach(c => {
+        const option = document.createElement("option");
+        option.value = c.id;            // id for update
+        option.textContent = c.class_name; // display name
+        // Pre-select already assigned classes
+        if (staff.assigned_classes.some(ac => ac.id === c.id || ac.name === c.class_name)) {
+            option.selected = true;
+        }
+        classSelect.appendChild(option);
+    });
+
+    // Show modal
+    document.getElementById("updateModal").style.display = "flex";
+}
+
+function closeModal() {
+    document.getElementById("updateModal").style.display = "none";
+}
+
+document.getElementById("updateForm").addEventListener("submit", async function(e){
+    e.preventDefault();
+
+    const name = document.getElementById("update_name").value;
+    const role = document.getElementById("update_role").value;
+    const gender = document.getElementById("update_gender").value;
+    const selectedOptions = Array.from(document.getElementById("update_classes").selectedOptions);
+    const classIds = selectedOptions.map(o => o.value);
+    const classNames = selectedOptions.map(o => o.textContent);
+
+    const payload = {
+        staff_name: name,
+        role,
+        gender,
+        assigned_class_ids: classIds,
+        assigned_class_names: classNames
+    };
+
+    await fetch(`${BASE_URL}/admin/staff/update/by-roll/${selectedStaffRoll}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(payload)
+    });
+
+    closeModal();
+    loadStaffs(); // refresh table
+});
+
 </script>
 
 </body>
