@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional,List
 
 class ClassCreate(BaseModel):
     class_name: str
@@ -14,3 +14,16 @@ class ClassUpdate(BaseModel):
     department: Optional[str] = None
     section: Optional[str] = None
     regular_or_self: Optional[str] = None
+
+
+class ClassItem(BaseModel):
+    id: str
+    class_name: str
+    program_type: str
+    department: str | None
+    section: str | None
+    regular_or_self: str | None
+
+class ClassListResponse(BaseModel):
+    count: int
+    classes: List[ClassItem]

@@ -108,10 +108,8 @@ async def list_all_staff(
 
     return {"count": len(filtered_staff), "staffs": filtered_staff}
 
-
 @router.get(
     "/list-staffs-with-assighned_classes",
-    response_model=StaffListResponse,
     dependencies=[Depends(is_admin)]
 )
 async def list_all_staff2(
@@ -127,7 +125,7 @@ async def list_all_staff2(
         .joinedload(Class.class_name_ref)
     )
 
-    # DB-level filters
+    # Filters
     if role:
         query = query.where(User.role == role)
 
@@ -148,17 +146,19 @@ async def list_all_staff2(
     filtered_staff = []
 
     for staff in staff_list:
-        # Handle None for staff_name / staff_roll_number
+        # Fallbacks for None
         name = staff.staff_name or ""
         roll = staff.staff_roll_number or ""
+        gender_val = staff.gender or ""
+        role_val = staff.role.value if isinstance(staff.role, enum.Enum) else staff.role
 
-        # Convert assigned_classes to list of AssignedClassRead
+        # Assigned classes
         assigned_classes = [
             AssignedClassRead(
                 id=str(c.id),
                 name=c.class_name_ref.name if c.class_name_ref else ""
             )
-            for c in staff.assigned_classes
+            for c in staff.assigned_classes or []
         ]
 
         filtered_staff.append(
@@ -166,14 +166,14 @@ async def list_all_staff2(
                 id=str(staff.id),
                 staff_name=name,
                 staff_roll_number=roll,
-                role=staff.role.value if isinstance(staff.role, enum.Enum) else staff.role,
-                gender=staff.gender or "",
+                role=role_val,
+                gender=gender_val,
                 assigned_classes=assigned_classes
             )
         )
 
+    # Return as dict without wrapping in another Pydantic model
     return {
         "count": len(filtered_staff),
         "staffs": filtered_staff
     }
-

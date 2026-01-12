@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models import ProgramType,Class
 from app.auth.dependencies import is_admin  # your admin dependency
+from app.schemas.class_schemas import ClassItem,ClassListResponse
 
 from app.schemas.program_types import (
     ProgramTypeListResponse,
@@ -140,3 +141,36 @@ async def get_classes_by_program_type_id(
             for c in classes
         ]
     )
+
+
+
+@router.get("/list-classes", response_model=ClassListResponse)
+async def list_all_classes(db: AsyncSession = Depends(get_db)):
+    """
+    Fetch all classes from the database
+    """
+
+    result = await db.execute(
+        select(Class)
+        .options(
+            selectinload(Class.class_name_ref),
+            selectinload(Class.program_type_ref)
+        )
+    )
+
+    classes = result.scalars().all()
+
+    class_list = []
+    for c in classes:
+        class_list.append(
+            ClassItem(
+                id=str(c.id),
+                class_name=c.class_name_ref.name if c.class_name_ref else "",
+                program_type=c.program_type_ref.type_name if c.program_type_ref else "",
+                department=c.department or "",
+                section=c.section or "",
+                regular_or_self=c.regular_or_self or ""
+            )
+        )
+
+    return ClassListResponse(count=len(class_list), classes=class_list)
