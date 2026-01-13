@@ -220,7 +220,6 @@
     loadStaffs();
     let selectedStaffRoll = "";
 let allClasses = [];
-
 async function openUpdateModal(staff) {
     selectedStaffRoll = staff.staff_roll_number;
 
@@ -242,18 +241,21 @@ async function openUpdateModal(staff) {
     // Populate multi-select with all classes
     allClasses.forEach(c => {
         const option = document.createElement("option");
-        option.value = c.id;            // id for update
+        option.value = c.id;             // always use ID as value
         option.textContent = c.class_name; // display name
-        // Pre-select already assigned classes
-        if (staff.assigned_classes.some(ac => ac.id === c.id || ac.name === c.class_name)) {
+
+        // ✅ Pre-select based on ID, not name
+        if (staff.assigned_classes.some(ac => ac.id === c.id)) {
             option.selected = true;
         }
+
         classSelect.appendChild(option);
     });
 
     // Show modal
     document.getElementById("updateModal").style.display = "flex";
 }
+
 
 function closeModal() {
     document.getElementById("updateModal").style.display = "none";
