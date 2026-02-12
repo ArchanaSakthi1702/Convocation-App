@@ -2,6 +2,7 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models import User, UserRole
 from app.auth.jwt import decode_access_token
@@ -26,26 +27,35 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User:
+
     token = credentials.credentials
+
     try:
         payload = decode_access_token(token)
-
         user_id = payload.get("user_id")
+
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
 
-        can_access_both = payload.get("can_access_both", False)
-
-        if isinstance(user_id, str):
-            user_id = uuid.UUID(user_id)
+        user_id = uuid.UUID(user_id)
 
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    user = await get_user_by_id(user_id, db)
+    stmt = (
+        select(User)
+        .options(
+            selectinload(User.roles),
+            selectinload(User.assigned_classes)
+        )
+        .where(User.id == user_id)
+    )
 
-    # ✅ Attach permission dynamically (NO model change)
-    user.can_access_both = can_access_both
+    result = await db.execute(stmt)
+    user = result.scalars().first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
 
     return user
 
@@ -54,8 +64,11 @@ async def get_current_user(
 # ---------------- Role-based dependencies ---------------- #
 
 async def is_admin(current_user: User = Depends(get_current_user)):
-    if current_user.role != UserRole.admin:
+    role_names = {role.name for role in current_user.roles}
+
+    if UserRole.admin not in role_names:
         raise HTTPException(status_code=403, detail="Admin access required")
+
     return current_user
 
 

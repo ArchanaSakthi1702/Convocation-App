@@ -12,7 +12,6 @@ from app.schemas.attendance_marking import MarkAttendanceResponse
 
 router = APIRouter(prefix="/attendance-staff", tags=["Attendance Incharge Marking Attendances"])
 
-
 # -------------------------
 # PUT: Mark Attendance
 # -------------------------
@@ -24,21 +23,39 @@ async def mark_attendance(
     db: AsyncSession = Depends(get_db)
 ):
 
-    # 1. Only attendance incharge allowed
-    if (current_user.role != UserRole.attendance_incharge and 
-        not getattr(current_user,"can_access_both",False)):
+    # 1️⃣ Load full user with roles + assigned classes
+    user_result = await db.execute(
+        select(User)
+        .options(
+            selectinload(User.roles),              # ✅ load roles
+            selectinload(User.assigned_classes)   # ✅ load classes
+        )
+        .where(User.id == current_user.id)
+    )
+    staff = user_result.scalar_one_or_none()
+
+    if not staff:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # 2️⃣ Proper role check (many-to-many)
+    has_attendance_role = any(
+        role.name == UserRole.attendance_incharge
+        for role in staff.roles
+    )
+
+    if not has_attendance_role:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    # 2. Time limit check
+    # 3️⃣ Time limit check
     check_attendance_time_limit()
 
-    # 3. Convert student_id into UUID bytes (SQLite BLOB)
+    # 4️⃣ Validate student UUID
     try:
         student_uuid = UUID(student_id)
-    except:
+    except ValueError:
         raise HTTPException(status_code=400, detail="Invalid student_id format")
 
-    # 4. Fetch student WITH CLASS using selectinload (prevents lazy loading)
+    # 5️⃣ Fetch student WITH class
     result = await db.execute(
         select(Student)
         .options(selectinload(Student.class_ref))
@@ -49,18 +66,7 @@ async def mark_attendance(
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    # 5. Fetch current_user WITH assigned_classes using selectinload
-    user_result = await db.execute(
-        select(User)
-        .options(selectinload(User.assigned_classes))
-        .where(User.id == current_user.id)
-    )
-    staff = user_result.scalar_one_or_none()
-
-    if not staff:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # 6. Check assigned class constraint
+    # 6️⃣ Check assigned class access
     assigned_class_ids = {c.id for c in staff.assigned_classes}
 
     if student.class_id not in assigned_class_ids:
@@ -69,14 +75,15 @@ async def mark_attendance(
             detail="You are not assigned to this student's class"
         )
 
-    # 7. Same gender restriction
-    if student.gender != staff.gender:
-        raise HTTPException(
-            status_code=403,
-            detail="You can mark attendance only for same-gender students"
-        )
+    # 7️⃣ Gender restriction logic
+    if not staff.can_handle_both_genders:
+        if student.gender != staff.gender:
+            raise HTTPException(
+                status_code=403,
+                detail="You can mark attendance only for same-gender students"
+            )
 
-    # 8. Update attendance
+    # 8️⃣ Update attendance
     student.present = present
     await db.commit()
     await db.refresh(student)
@@ -85,5 +92,5 @@ async def mark_attendance(
         "message": "Attendance updated successfully",
         "student_id": student_id,
         "student_name": student.name,
-        "present": present
+        "present": student.present
     }

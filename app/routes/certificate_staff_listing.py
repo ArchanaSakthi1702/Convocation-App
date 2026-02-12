@@ -14,20 +14,15 @@ router = APIRouter(
     prefix="/certificate-staff",
     tags=["Certificate Incharge Attendance Listing"]
 )
-
-@router.get("/list-classes",response_model=StaffClassesResponse)
+@router.get("/list-classes", response_model=StaffClassesResponse)
 async def list_classes_for_certificate_incharge(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # Allowed only for certificate incharge
-    if (current_user.role != UserRole.certificate_incharge and not getattr(current_user,"can_access_both",False)):
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-
     result = await db.execute(
         select(User)
         .options(
+            selectinload(User.roles),  # ✅ load roles
             selectinload(User.assigned_classes)
             .selectinload(Class.class_name_ref)
         )
@@ -37,6 +32,15 @@ async def list_classes_for_certificate_incharge(
     staff = result.scalar_one_or_none()
     if not staff:
         raise HTTPException(status_code=404, detail="User not found")
+
+    # ✅ Proper role check (many-to-many)
+    has_certificate_role = any(
+        role.name == UserRole.certificate_incharge
+        for role in staff.roles
+    )
+
+    if not has_certificate_role:
+        raise HTTPException(status_code=403, detail="Not authorized")
 
     if not staff.assigned_classes:
         return {
@@ -53,11 +57,12 @@ async def list_classes_for_certificate_incharge(
             "regular_or_self": c.regular_or_self
         }
         for c in staff.assigned_classes
+        if c.class_name_ref
     ]
 
     return {
-        "staff_id": str(current_user.id),
-        "staff_name": current_user.staff_name,
+        "staff_id": str(staff.id),
+        "staff_name": staff.staff_name,
         "assigned_classes_count": len(classes),
         "classes": classes
     }
@@ -71,15 +76,34 @@ async def get_students_by_class(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # Allowed only for certificate incharge
-    if (current_user.role != UserRole.certificate_incharge and not getattr(current_user,"can_access_both",False)):
+    # Load current user with roles + assigned classes
+    result_staff = await db.execute(
+        select(User)
+        .options(
+            selectinload(User.roles),              # ✅ load roles
+            selectinload(User.assigned_classes)   # ✅ load classes
+        )
+        .where(User.id == current_user.id)
+    )
+    staff = result_staff.scalar_one_or_none()
+
+    if not staff:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # ✅ Proper role check (many-to-many)
+    has_certificate_role = any(
+        role.name == UserRole.certificate_incharge
+        for role in staff.roles
+    )
+
+    if not has_certificate_role:
         raise HTTPException(status_code=403, detail="Not authorized")
-    
+
+    # Validate class_id
     try:
         class_uuid = UUID(class_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid class ID format")
-
 
     # Load class with students
     result = await db.execute(
@@ -89,32 +113,30 @@ async def get_students_by_class(
             selectinload(Class.class_name_ref)
         )
         .where(Class.id == class_uuid)
-
     )
     cls = result.scalar_one_or_none()
+
     if not cls:
         raise HTTPException(status_code=404, detail="Class not found")
 
-    # Check staff actually has access to this class
-    result_staff = await db.execute(
-        select(User)
-        .options(selectinload(User.assigned_classes))
-        .where(User.id == current_user.id)
-    )
-    staff = result_staff.scalar_one()
-
+    # ✅ Check staff has access to this class
     if cls not in staff.assigned_classes:
-        raise HTTPException(status_code=403, detail="You are not incharge of this class")
+        raise HTTPException(
+            status_code=403,
+            detail="You are not incharge of this class"
+        )
 
     # Apply present filter
     if present is None:
         filtered_students = cls.students
     else:
-        filtered_students = [s for s in cls.students if s.present == present]
+        filtered_students = [
+            s for s in cls.students if s.present == present
+        ]
 
     return {
         "class_id": str(cls.id),
-        "class_name": cls.class_name_ref.name,
+        "class_name": cls.class_name_ref.name if cls.class_name_ref else None,
         "department": cls.department,
         "section": cls.section,
         "regular_or_self": cls.regular_or_self,
@@ -130,3 +152,4 @@ async def get_students_by_class(
             for s in filtered_students
         ]
     }
+

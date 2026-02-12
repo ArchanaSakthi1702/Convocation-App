@@ -12,10 +12,26 @@ staff_classes = Table(
     Column("class_id", UUID(as_uuid=True), ForeignKey("classes.id"))
 )
 
+user_roles = Table(
+    "user_roles",
+    Base.metadata,
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id")),
+    Column("role_id", UUID(as_uuid=True), ForeignKey("roles.id"))
+)
+
 class UserRole(str, enum.Enum):
     admin = "admin"
     certificate_incharge = "certificate_incharge"
     attendance_incharge = "attendance_incharge"
+    hod = "hod"   # ✅ new role added
+
+class Role(Base):
+    __tablename__ = "roles"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(Enum(UserRole), unique=True, nullable=False)
+
+    users = relationship("User", secondary="user_roles", back_populates="roles")
 
 
 class User(Base):
@@ -28,9 +44,16 @@ class User(Base):
     staff_roll_number = Column(String, unique=True, nullable=True)
     staff_name = Column(String, nullable=True)
 
-    role = Column(Enum(UserRole), nullable=False)
+    roles = relationship(
+        "Role",
+        secondary=user_roles,
+        back_populates="users"
+    )
+
 
     gender = Column(Enum("male", "female", name="staff_gender_enum"), nullable=False)
+    can_handle_both_genders = Column(Boolean, default=False)
+
 
     assigned_class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id"), nullable=True)
 

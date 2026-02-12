@@ -1,39 +1,45 @@
-from pydantic import BaseModel,Field
+from pydantic import BaseModel,Field,ConfigDict
 from typing import Optional,List
 from uuid import UUID
 
 from app.models import UserRole
 
+
+# ----------------------------
+# Create Staff
+# ----------------------------
 class StaffCreate(BaseModel):
     staff_roll_number: str
-    role: UserRole
-    staff_name:Optional[str]=None
+    roles: List[UserRole]              # ✅ plural + required
+    staff_name: Optional[str] = None
     gender: str
-    assigned_class_ids: Optional[List[str]] = None
+    assigned_class_ids: Optional[List[UUID]] = None
     assigned_class_names: Optional[List[str]] = None
+    can_handle_both_genders: bool = False   # ✅ no need Optional
 
 
+# ----------------------------
+# Full Update Staff
+# ----------------------------
 class StaffFullUpdate(BaseModel):
     staff_name: Optional[str] = None
     staff_roll_number: Optional[str] = None
-    role: Optional[str] = None
+    roles: Optional[List[UserRole]] = None   # ✅ plural + optional
     gender: Optional[str] = None
+    can_handle_both_genders: Optional[bool] = None
 
-    # Class assignment
     assigned_class_ids: Optional[List[UUID]] = None
     assigned_class_names: Optional[List[str]] = None
-    
 
 class StaffRead(BaseModel):
     id: str
-    staff_name: Optional[str]
-    staff_roll_number: Optional[str]
-    role: str
+    staff_name: Optional[str] = None
+    staff_roll_number: Optional[str] = None
+    roles: List[UserRole]          # ✅ plural + list
     gender: str
     assigned_classes: List[str] = []
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AssignedClassRead(BaseModel):

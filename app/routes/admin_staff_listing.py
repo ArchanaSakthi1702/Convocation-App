@@ -6,7 +6,7 @@ from sqlalchemy.orm import joinedload
 
 import enum
 from app.database import get_db
-from app.models import User,Class,ProgramType
+from app.models import User,Class,ProgramType,Role
 from app.auth.dependencies import is_admin
 from app.schemas.staff_schemas import StaffRead,StaffListResponse,StaffRead2,AssignedClassRead
 
@@ -16,19 +16,15 @@ router=APIRouter(
 )
 
 
-
 @router.get("/staff/search", dependencies=[Depends(is_admin)])
 async def search_staff(
     q: str,
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Search staff by name or roll number (with assigned class IDs & names)
-    """
-
     query = (
         select(User)
         .options(
+            joinedload(User.roles),  # ✅ load roles
             joinedload(User.assigned_classes)
             .joinedload(Class.class_name_ref)
         )
@@ -50,7 +46,7 @@ async def search_staff(
                 "staff_id": str(staff.id),
                 "staff_name": staff.staff_name,
                 "staff_roll_number": staff.staff_roll_number,
-                "role": staff.role.value if isinstance(staff.role, enum.Enum) else staff.role,
+                "roles": [r.name for r in staff.roles],  # ✅ FIXED
                 "gender": staff.gender,
                 "assigned_classes": [
                     {
@@ -73,24 +69,30 @@ async def list_all_staff(
     db: AsyncSession = Depends(get_db)
 ):
     query = select(User).options(
+        joinedload(User.roles),  # ✅ load roles
         joinedload(User.assigned_classes)
         .joinedload(Class.program_type_ref),
         joinedload(User.assigned_classes)
         .joinedload(Class.class_name_ref)
     )
 
-    # Apply filters at DB level
+    # ✅ Role filter (many-to-many)
     if role:
-        query = query.where(User.role == role)
+        query = query.join(User.roles).where(Role.name == role)
+
     if gender:
         query = query.where(User.gender == gender)
+
     if program_type:
-        query = query.join(User.assigned_classes).join(Class.program_type_ref).where(
-            ProgramType.type_name == program_type
+        query = (
+            query
+            .join(User.assigned_classes)
+            .join(Class.program_type_ref)
+            .where(ProgramType.type_name == program_type)
         )
 
     result = await db.execute(query)
-    staff_list = result.scalars().unique().all()  # remove duplicates
+    staff_list = result.scalars().unique().all()
 
     filtered_staff = []
 
@@ -100,13 +102,21 @@ async def list_all_staff(
                 id=str(staff.id),
                 staff_name=staff.staff_name,
                 staff_roll_number=staff.staff_roll_number,
-                role=staff.role.value if isinstance(staff.role, enum.Enum) else staff.role,
+                roles=[r.name for r in staff.roles],  # ✅ FIXED
                 gender=staff.gender,
-                assigned_classes=[c.class_name_ref.name for c in staff.assigned_classes if c.class_name_ref]
+                assigned_classes=[
+                    c.class_name_ref.name
+                    for c in staff.assigned_classes
+                    if c.class_name_ref
+                ]
             )
         )
 
-    return {"count": len(filtered_staff), "staffs": filtered_staff}
+    return {
+        "count": len(filtered_staff),
+        "staffs": filtered_staff
+    }
+
 
 @router.get(
     "/list-staffs-with-assighned_classes",
