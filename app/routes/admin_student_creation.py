@@ -55,7 +55,7 @@ async def create_student(payload: StudentCreate, db: AsyncSession = Depends(get_
     new_student = Student(
         roll_number=payload.roll_number,
         name=payload.name,
-        gender=payload.gender,
+        gender=payload.gender.lower(),
         class_id=cls_obj.id
     )
 

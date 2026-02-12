@@ -103,8 +103,11 @@ async def update_staff_by_id(
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
-        select(User).where(User.id == staff_id)
-    )
+    select(User)
+    .options(selectinload(User.roles),
+             selectinload(User.assigned_classes))
+    .where(User.id == staff_id)
+)
     staff = result.scalars().first()
 
     if not staff:
@@ -138,6 +141,8 @@ async def update_staff_by_id(
             raise HTTPException(status_code=400, detail="Invalid roles provided")
 
         staff.roles = role_objects
+    
+    print("just")
 
     # 🔹 Update classes
     if payload.assigned_class_ids or payload.assigned_class_names:
@@ -147,14 +152,16 @@ async def update_staff_by_id(
             names=payload.assigned_class_names
         )
         staff.assigned_classes = assigned_classes
+    
+    roles_list = [role.name.value for role in staff.roles]
+    
 
     await db.commit()
-    await db.refresh(staff)
 
     return {
         "message": "Staff updated successfully",
         "staff_id": str(staff.id),
         "staff_roll_number": staff.staff_roll_number,
         "staff_name": staff.staff_name,
-        "roles": [role.name.value for role in staff.roles]
+        "roles": roles_list
     }
