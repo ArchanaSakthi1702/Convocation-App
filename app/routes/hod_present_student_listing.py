@@ -15,7 +15,7 @@ router=APIRouter(
 
 
 
-@router.get("/hod/list-present-students")
+@router.get("/list-present-students")
 async def list_present_students_for_hod(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -61,7 +61,10 @@ async def list_present_students_for_hod(
                 "gender": student.gender,
                 "present": student.present
             }
-            for student in cls.students
+            for student in sorted(
+                cls.students,
+                key=lambda s: s.roll_number or ""   # safe if None
+            )
             if student.present is True
         ]
 
