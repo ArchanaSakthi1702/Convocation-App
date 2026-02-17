@@ -48,6 +48,7 @@ async def search_staff(
                 "staff_roll_number": staff.staff_roll_number,
                 "roles": [r.name for r in staff.roles],  # ✅ FIXED
                 "gender": staff.gender,
+                "can_handle_both_genders": staff.can_handle_both_genders,  # ✅ ADDED
                 "assigned_classes": [
                     {
                         "id": str(c.id),
