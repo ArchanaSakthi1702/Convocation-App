@@ -106,14 +106,15 @@ async def generate_present_students_pdf(
             student_stmt = select(Student).where(
                 Student.class_id == cls.id,
                 Student.present.is_(True)
-            )
+            ).order_by(Student.roll_number)
+
             student_result = await db.execute(student_stmt)
             students = student_result.scalars().all()
 
             if not students:
                 continue
 
-            # Class info (NO program here)
+            # Class info
             class_info = f"""
             <b>Class:</b> {cls.class_name_ref.name} &nbsp;&nbsp;
             <b>Section:</b> {cls.section or '-'}
@@ -122,31 +123,40 @@ async def generate_present_students_pdf(
             elements.append(Paragraph(class_info, styles["Normal"]))
             elements.append(Spacer(1, 8))
 
-            table_data = [["Roll No", "Student Name"]]
-            for s in students:
-                table_data.append([s.roll_number, s.name])
+            # ✅ Add Serial Number Column
+            table_data = [["S.No", "Roll No", "Student Name"]]
+
+            for index, s in enumerate(students, start=1):
+                table_data.append([
+                    index,                 # Serial Number
+                    s.roll_number,
+                    s.name
+                ])
 
             table = Table(
                 table_data,
-                colWidths=[90, 260, 90],
+                colWidths=[50, 90, 210],  # Adjusted widths for 3 columns
                 repeatRows=1
             )
 
             table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2F5597")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                # Header styling
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2F5597")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("ALIGN", (0, 0), (-1, 0), "CENTER"),
 
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                # Grid
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
 
-            ("ALIGN", (0, 1), (0, -1), "CENTER"),  # Roll No
-            ("ALIGN", (1, 1), (1, -1), "LEFT"),    # Student Name
+                # Column alignment
+                ("ALIGN", (0, 1), (0, -1), "CENTER"),  # S.No
+                ("ALIGN", (1, 1), (1, -1), "CENTER"),  # Roll No
+                ("ALIGN", (2, 1), (2, -1), "LEFT"),    # Name
 
-            ("FONTSIZE", (0, 0), (-1, -1), 9),
-            ("BACKGROUND", (0, 1), (-1, -1), colors.whitesmoke),
-        ]))
-
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.whitesmoke),
+            ]))
 
             elements.append(table)
             elements.append(Spacer(1, 25))
