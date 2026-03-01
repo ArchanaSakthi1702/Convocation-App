@@ -38,7 +38,6 @@ async def list_present_students_for_hod(
     if UserRole.hod not in role_names:
         raise HTTPException(status_code=403, detail="HOD access required")
 
-    # 🔹 Load user with assigned classes + students + class name
     result = await db.execute(
         select(User)
         .options(
@@ -64,7 +63,7 @@ async def list_present_students_for_hod(
     response_data = []
 
     for cls in hod.assigned_classes:
-        # ✅ Only present students (no gender filter)
+
         present_students = [
             {
                 "student_id": str(student.id),
@@ -75,10 +74,19 @@ async def list_present_students_for_hod(
             }
             for student in sorted(
                 cls.students,
-                key=lambda s: s.roll_number or ""   # safe if None
+                key=lambda s: s.roll_number or ""
             )
             if student.present is True
         ]
+
+        # ✅ Dynamic department message
+        dynamic_message = (
+            "Mr. President / Mr. Principal / Mr. Secretary to Government of India, "
+            "Ministry of Earth Sciences, New Delhi. "
+            f"I present unto you the candidates IN PERSON in the Department of {cls.class_name_ref.name} "
+            "who have been certified after examination to be duly qualified to receive "
+            "the degrees of Madurai Kamaraj University."
+        )
 
         response_data.append({
             "class_id": str(cls.id),
@@ -87,6 +95,7 @@ async def list_present_students_for_hod(
             "section": cls.section,
             "regular_or_self": cls.regular_or_self,
             "students_count": len(present_students),
+            "message": dynamic_message,  # 🔥 Added here
             "students": present_students
         })
 
