@@ -38,7 +38,8 @@ origins = [
     "http://127.0.0.1:3000",
     "http://localhost:5173",   # Vite
     "http://127.0.0.1:5173",
-     "https://convocationadminpanel.vercel.app"
+    "https://convocationadminpanel.vercel.app",
+    "https://anjac-convocation.web.app"
 ]
 
 app = FastAPI(

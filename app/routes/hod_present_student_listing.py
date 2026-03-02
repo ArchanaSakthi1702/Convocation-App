@@ -156,12 +156,23 @@ async def download_present_students_pdf(
         # 🔷 Class Header
         class_title = f"""
         Class: {cls.class_name_ref.name if cls.class_name_ref else ''} |
-        Dept: {cls.department} |
         Section: {cls.section} |
         Type: {cls.regular_or_self}
         """
         elements.append(Paragraph(class_title, styles["Heading2"]))
         elements.append(Spacer(1, 0.2 * inch))
+
+        dynamic_message = (
+            "Mr. President / Mr. Principal / Mr. Secretary to Government of India, "
+            "Ministry of Earth Sciences, New Delhi. "
+            f"I present unto you the candidates IN PERSON in the Department of "
+            f"{cls.class_name_ref.name if cls.class_name_ref else ''} "
+            "who have been certified after examination to be duly qualified to receive "
+            "the degrees of Madurai Kamaraj University."
+        )
+
+        elements.append(Paragraph(dynamic_message, styles["Normal"]))
+        elements.append(Spacer(1, 0.3 * inch))
 
         # ✅ Table Header (Gender removed)
         data = [["S.No", "Roll No", "Name"]]
