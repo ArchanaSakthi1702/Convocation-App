@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Optional
+from app.schemas.seating import SeatingInfo
 
 # Student info inside each class
 class StudentInfo(BaseModel):
@@ -18,6 +19,7 @@ class ClassInfoWithStudents(BaseModel):
     regular_or_self: Optional[str] = None
     students_count: int
     students: List[StudentInfo]
+    seating: List[SeatingInfo]
 
 # Main response schema for attendance-incharge
 class AttendanceStaffResponse(BaseModel):

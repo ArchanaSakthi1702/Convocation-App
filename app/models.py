@@ -1,6 +1,6 @@
 import uuid
 import enum
-from sqlalchemy import Column, String, Enum, ForeignKey, Boolean, Table
+from sqlalchemy import Column, String, Enum, ForeignKey, Boolean, Table,Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -119,3 +119,28 @@ class Student(Base):
     class_ref = relationship("Class", back_populates="students")
 
     present = Column(Boolean, nullable=False, default=False)
+
+
+
+
+
+class SeatingPlan(Base):
+    __tablename__ = "seating_plans"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    class_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("classes.id"),
+        nullable=False
+    )
+
+    gender = Column(
+        Enum("male", "female", name="seating_gender_enum"),
+        nullable=False
+    )
+
+    chair_from = Column(Integer, nullable=False)
+    chair_to = Column(Integer, nullable=False)
+
+    class_ref = relationship("Class")

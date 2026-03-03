@@ -6,8 +6,9 @@ from typing import Optional,List
 
 from app.auth.dependencies import get_current_user
 from app.database import get_db
-from app.models import User, Class, UserRole
+from app.models import User, Class, UserRole,SeatingPlan
 from app.schemas.listing_for_attendance import AttendanceStaffResponse,ClassInfoWithStudents,StudentInfo
+from app.schemas.seating import SeatingInfo
 
 
 
@@ -23,15 +24,15 @@ async def list_students_for_attendance_incharge(
     db: AsyncSession = Depends(get_db)
 ):
 
-    # 🔹 Load full user with roles + classes + students
+    # 🔹 Load full user with roles + assigned classes + students
     result = await db.execute(
         select(User)
         .options(
-            selectinload(User.roles),  # ✅ load roles
+            selectinload(User.roles),
             selectinload(User.assigned_classes)
-            .selectinload(Class.students),
+                .selectinload(Class.students),
             selectinload(User.assigned_classes)
-            .selectinload(Class.class_name_ref)
+                .selectinload(Class.class_name_ref)
         )
         .where(User.id == current_user.id)
     )
@@ -41,7 +42,7 @@ async def list_students_for_attendance_incharge(
     if not staff:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # 🔹 Proper role check (many-to-many)
+    # 🔹 Role check
     has_attendance_role = any(
         role.name == UserRole.attendance_incharge
         for role in staff.roles
@@ -63,7 +64,7 @@ async def list_students_for_attendance_incharge(
 
     for c in staff.assigned_classes:
 
-        # 🔹 Gender filtering logic
+        # 🔹 Gender filtering for students
         if staff.can_handle_both_genders:
             students_filtered_by_gender = c.students
         else:
@@ -89,6 +90,33 @@ async def list_students_for_attendance_incharge(
             for s in students_filtered_by_gender
         ]
 
+        # 🔹 Fetch seating plans for this class (NO model change)
+        seating_result = await db.execute(
+            select(SeatingPlan).where(
+                SeatingPlan.class_id == c.id
+            )
+        )
+
+        all_seating = seating_result.scalars().all()
+
+        # 🔹 Gender filtering for seating
+        if staff.can_handle_both_genders:
+            seating_filtered = all_seating
+        else:
+            seating_filtered = [
+                sp for sp in all_seating
+                if sp.gender == staff.gender
+            ]
+
+        seating_data = [
+            SeatingInfo(
+                gender=sp.gender,
+                chair_from=sp.chair_from,
+                chair_to=sp.chair_to
+            )
+            for sp in seating_filtered
+        ]
+
         response_data.append(
             ClassInfoWithStudents(
                 class_id=str(c.id),
@@ -97,7 +125,8 @@ async def list_students_for_attendance_incharge(
                 section=c.section,
                 regular_or_self=c.regular_or_self,
                 students_count=len(filtered_students),
-                students=filtered_students
+                students=filtered_students,
+                seating=seating_data
             )
         )
 
