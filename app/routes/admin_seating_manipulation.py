@@ -1,7 +1,8 @@
 # routers/seating.py
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from uuid import UUID
 
 from app.database import get_db
@@ -17,21 +18,23 @@ from app.auth.dependencies import is_admin
 router = APIRouter(prefix="/seating", tags=["Seating"])
 
 
-
 @router.post("/", response_model=SeatingPlanResponse)
 async def create_seating_plan(
     data: SeatingPlanCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(is_admin)
 ):
     if data.chair_from > data.chair_to:
         raise HTTPException(status_code=400, detail="Invalid chair range")
 
-    # Prevent duplicate class + gender
-    existing = db.query(SeatingPlan).filter(
-        SeatingPlan.class_id == data.class_id,
-        SeatingPlan.gender == data.gender
-    ).first()
+    # ✅ Async query
+    result = await db.execute(
+        select(SeatingPlan).where(
+            SeatingPlan.class_id == data.class_id,
+            SeatingPlan.gender == data.gender
+        )
+    )
+    existing = result.scalar_one_or_none()
 
     if existing:
         raise HTTPException(status_code=400, detail="Seating plan already exists")
@@ -44,23 +47,23 @@ async def create_seating_plan(
     )
 
     db.add(seating)
-    db.commit()
-    db.refresh(seating)
+    await db.commit()
+    await db.refresh(seating)
 
     return seating
-
 
 
 @router.put("/{seating_id}", response_model=SeatingPlanResponse)
 async def update_seating_plan(
     seating_id: UUID,
     data: SeatingPlanUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(is_admin)
 ):
-    seating = db.query(SeatingPlan).filter(
-        SeatingPlan.id == seating_id
-    ).first()
+    result = await db.execute(
+        select(SeatingPlan).where(SeatingPlan.id == seating_id)
+    )
+    seating = result.scalar_one_or_none()
 
     if not seating:
         raise HTTPException(status_code=404, detail="Seating plan not found")
@@ -74,28 +77,28 @@ async def update_seating_plan(
     if seating.chair_from > seating.chair_to:
         raise HTTPException(status_code=400, detail="Invalid chair range")
 
-    db.commit()
-    db.refresh(seating)
+    await db.commit()
+    await db.refresh(seating)
 
     return seating
-
 
 
 @router.delete("/{seating_id}")
 async def delete_seating_plan(
     seating_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(is_admin)
 ):
-    seating = db.query(SeatingPlan).filter(
-        SeatingPlan.id == seating_id
-    ).first()
+    result = await db.execute(
+        select(SeatingPlan).where(SeatingPlan.id == seating_id)
+    )
+    seating = result.scalar_one_or_none()
 
     if not seating:
         raise HTTPException(status_code=404, detail="Seating plan not found")
 
-    db.delete(seating)
-    db.commit()
+    await db.delete(seating)
+    await db.commit()
 
     return {"message": "Seating plan deleted successfully"}
 
@@ -103,25 +106,26 @@ async def delete_seating_plan(
 @router.post("/bulk", response_model=list[SeatingPlanResponse])
 async def bulk_create_seating_plans(
     data: SeatingPlanBulkCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(is_admin)
 ):
     created_seatings = []
 
     for item in data.seating_plans:
 
-        # Validate chair range
         if item.chair_from > item.chair_to:
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid chair range for class {item.class_id}"
             )
 
-        # Prevent duplicate class + gender
-        existing = db.query(SeatingPlan).filter(
-            SeatingPlan.class_id == item.class_id,
-            SeatingPlan.gender == item.gender
-        ).first()
+        result = await db.execute(
+            select(SeatingPlan).where(
+                SeatingPlan.class_id == item.class_id,
+                SeatingPlan.gender == item.gender
+            )
+        )
+        existing = result.scalar_one_or_none()
 
         if existing:
             raise HTTPException(
@@ -139,9 +143,9 @@ async def bulk_create_seating_plans(
         db.add(seating)
         created_seatings.append(seating)
 
-    db.commit()
+    await db.commit()
 
     for seating in created_seatings:
-        db.refresh(seating)
+        await db.refresh(seating)
 
     return created_seatings
