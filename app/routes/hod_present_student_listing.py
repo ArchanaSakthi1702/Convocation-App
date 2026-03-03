@@ -62,8 +62,27 @@ async def list_present_students_for_hod(
 
     response_data = []
 
-    for cls in hod.assigned_classes:
+    from collections import defaultdict
 
+    grouped_classes = defaultdict(list)
+
+    # Group classes by class_name
+    for cls in hod.assigned_classes:
+        if cls.class_name_ref:
+            grouped_classes[cls.class_name_ref.name].append(cls)
+
+    response_data = []
+
+    for class_name, class_group in grouped_classes.items():
+
+        # Take first class as reference for common fields
+        first_class = class_group[0]
+
+        all_students = []
+        for cls in class_group:
+            all_students.extend(cls.students)
+
+        # Female first sorting
         present_students = [
             {
                 "student_id": str(student.id),
@@ -73,36 +92,40 @@ async def list_present_students_for_hod(
                 "present": student.present
             }
             for student in sorted(
-                cls.students,
-                key=lambda s: s.roll_number or ""
+                all_students,
+                key=lambda s: (s.gender != "female", s.roll_number or "")
             )
             if student.present is True
         ]
 
-        # ✅ Dynamic department message
         dynamic_message = (
             "Mr. President / Mr. Principal / Mr. Secretary to Government of India, "
             "Ministry of Earth Sciences, New Delhi. "
-            f"I present unto you the candidates IN PERSON in the Department of {cls.class_name_ref.name} "
+            f"I present unto you the candidates IN PERSON in the Department of {class_name} "
             "who have been certified after examination to be duly qualified to receive "
             "the degrees of Madurai Kamaraj University."
         )
 
         response_data.append({
-            "class_id": str(cls.id),
-            "class_name": cls.class_name_ref.name if cls.class_name_ref else None,
-            "department": cls.department,
-            "section": cls.section,
-            "regular_or_self": cls.regular_or_self,
+            # 🔥 Keep SAME structure as first API
+            "class_id": str(first_class.id),  # representative id
+            "class_name": class_name,
+            "department": first_class.department,
+           "section": ", ".join(
+                sorted(
+                    {cls.section for cls in class_group if cls.section}
+                )
+            ) or None,  # combine sections
+            "regular_or_self": first_class.regular_or_self,
             "students_count": len(present_students),
-            "message": dynamic_message,  # 🔥 Added here
+            "message": dynamic_message,
             "students": present_students
         })
 
     return {
         "hod_id": str(hod.id),
         "hod_name": hod.staff_name,
-        "assigned_classes_count": len(hod.assigned_classes),
+        "assigned_classes_count": len(grouped_classes),
         "classes": response_data
     }
 
