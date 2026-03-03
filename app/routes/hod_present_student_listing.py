@@ -129,7 +129,6 @@ async def list_present_students_for_hod(
         "classes": response_data
     }
 
-
 @router.get("/download-present-students-pdf")
 async def download_present_students_pdf(
     current_user: User = Depends(get_current_user),
@@ -141,7 +140,7 @@ async def download_present_students_pdf(
     if UserRole.hod not in role_names:
         raise HTTPException(status_code=403, detail="HOD access required")
 
-    # 🔹 Load HOD with classes + students
+    # 🔹 Load HOD with classes + students + class name
     result = await db.execute(
         select(User)
         .options(
@@ -158,6 +157,10 @@ async def download_present_students_pdf(
     if not hod:
         raise HTTPException(status_code=404, detail="User not found")
 
+    if not hod.assigned_classes:
+        raise HTTPException(status_code=404, detail="No classes assigned")
+
+    # 🔹 PDF Setup
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     elements = []
@@ -169,27 +172,52 @@ async def download_present_students_pdf(
     )
     elements.append(Spacer(1, 0.3 * inch))
 
-    for cls in hod.assigned_classes:
+    # 🔹 Group Classes by class_name
+    from collections import defaultdict
 
+    grouped_classes = defaultdict(list)
+
+    for cls in hod.assigned_classes:
+        if cls.class_name_ref:
+            grouped_classes[cls.class_name_ref.name].append(cls)
+
+    # 🔹 Loop grouped classes
+    for class_name, class_group in grouped_classes.items():
+
+        first_class = class_group[0]
+
+        # 🔹 Combine students from all sections
+        all_students = []
+        for cls in class_group:
+            all_students.extend(cls.students)
+
+        # 🔹 Filter present students + Female first sorting
         present_students = sorted(
-            [s for s in cls.students if s.present is True],
-            key=lambda s: s.roll_number or ""
+            [s for s in all_students if s.present is True],
+            key=lambda s: (s.gender != "female", s.roll_number or "")
         )
+
+        # 🔷 Merge Sections safely
+        sections = ", ".join(
+            sorted({cls.section for cls in class_group if cls.section})
+        ) or "-"
 
         # 🔷 Class Header
         class_title = f"""
-        Class: {cls.class_name_ref.name if cls.class_name_ref else ''} |
-        Section: {cls.section} |
-        Type: {cls.regular_or_self}
+        Class: {class_name} |
+        Section: {sections} |
+        Type: {first_class.regular_or_self}
         """
+
         elements.append(Paragraph(class_title, styles["Heading2"]))
         elements.append(Spacer(1, 0.2 * inch))
 
+        # 🔷 Dynamic Message (Single per class name)
         dynamic_message = (
             "Mr. President / Mr. Principal / Mr. Secretary to Government of India, "
             "Ministry of Earth Sciences, New Delhi. "
             f"I present unto you the candidates IN PERSON in the Department of "
-            f"{cls.class_name_ref.name if cls.class_name_ref else ''} "
+            f"{class_name} "
             "who have been certified after examination to be duly qualified to receive "
             "the degrees of Madurai Kamaraj University."
         )
@@ -197,10 +225,9 @@ async def download_present_students_pdf(
         elements.append(Paragraph(dynamic_message, styles["Normal"]))
         elements.append(Spacer(1, 0.3 * inch))
 
-        # ✅ Table Header (Gender removed)
+        # 🔷 Table Header
         data = [["S.No", "Roll No", "Name"]]
 
-        # ✅ Add Serial Numbers
         for index, student in enumerate(present_students, start=1):
             data.append([
                 index,
@@ -211,7 +238,7 @@ async def download_present_students_pdf(
         if len(present_students) == 0:
             data.append(["-", "-", "No Present Students"])
 
-        # ✅ Proper column widths for 3 columns
+        # 🔷 Create Table
         table = Table(
             data,
             colWidths=[50, 100, 250],
@@ -219,28 +246,29 @@ async def download_present_students_pdf(
         )
 
         table.setStyle(TableStyle([
-    # 🔷 Header - Blue Background
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1F4E79")),  # Dark Blue
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            # Header styling
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1F4E79")),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
 
-        # 🔷 Grid
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#1F4E79")),
+            # Grid
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#1F4E79")),
 
-        # 🔷 Column Alignment
-        ('ALIGN', (0, 1), (0, -1), 'CENTER'),  # S.No
-        ('ALIGN', (1, 1), (1, -1), 'CENTER'),  # Roll No
-        ('ALIGN', (2, 1), (2, -1), 'LEFT'),    # Name
+            # Column alignment
+            ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+            ('ALIGN', (1, 1), (1, -1), 'CENTER'),
+            ('ALIGN', (2, 1), (2, -1), 'LEFT'),
 
-        # 🔷 Body Styling
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor("#E7F0FA")),  # Light Blue Rows
-    ]))
+            # Body styling
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor("#E7F0FA")),
+        ]))
 
         elements.append(table)
         elements.append(Spacer(1, 0.5 * inch))
 
+    # 🔹 Build PDF
     doc.build(elements)
     buffer.seek(0)
 
