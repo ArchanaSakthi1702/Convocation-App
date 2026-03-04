@@ -10,7 +10,7 @@ def check_attendance_time_limit():
     now_ist = datetime.now(ist).time()
 
     start_time = time(9, 00, 0)   
-    end_time = time(10, 00, 0) 
+    end_time = time(10, 30, 0) 
 
     if not (start_time <= now_ist <= end_time):
         raise HTTPException(
